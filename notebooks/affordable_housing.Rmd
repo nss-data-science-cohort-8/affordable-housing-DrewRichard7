@@ -98,26 +98,43 @@ homes_within_2000 <- st_join(park_rra, sales_and_details, join = st_is_within_di
 ```
 
 ```{r}
+homes_within_2000<- homes_within_2000 |>
+  st_drop_geometry()
+
 homes_within_2000 <- homes_within_2000 |>
-  st_drop_geometry() 
-#   mutate(
-#     longitude = as.numeric(str_extract(`centroid`, "\\((.+),", group = 1)),
-#     latitude = as.numeric(str_extract(`centroid`, ",(.+)\\)", group = 1))
-#   )
-homes_within_2000
+  mutate(
+    longitude = as.numeric(str_extract(`centroid.x`, "\\((.+),", group = 1)),
+    latitude = as.numeric(str_extract(`centroid.x`, ",(.+)\\)", group = 1))
+  )
 ```
 
 ```{r}
 # visualize sales within 2000ft of Park at Richards Road Apartments in homes_within_2000 for reference
 dc_shape |>
-  ggplot() +
-  geom_sf() +
-  geom_point(
-    data = homes_within_2000 |> drop_na(latitude),
-    aes(x = longitude, y = latitude),
+  ggplot() + geom_sf() + geom_point(data = homes_within_2000, aes(x = longitude, y = latitude),
     size = 0.01, color = '#619CFF', alpha = 0.07
-    )+
-  labs(title = 'sales within 2000ft of Park at Richards Road Apartments')
+    ) + labs(title = 'sales within 2000ft of Park at Richards Road Apartments')
+```
+
+```{r}
+st_crs(park_rra)
+st_crs(sales_and_details)
+```
+
+```{r}
+park_rra_projected <- st_transform(park_rra, 2274)
+sales_projected <- st_transform(sales_and_details, 2274)
+
+# bounds
+park_geo <- park_rra[['geometry']]
+inner_buffer <- st_buffer(park_geo, dist = 2000) # 2,000 ft buffer
+outer_buffer <- st_buffer(park_geo, dist = 3000) # 3,000 ft buffer
+
+# Create the doughnut (annular buffer)
+doughnut_buffer <- st_difference(outer_buffer, inner_buffer)
+# Step 4: Filter points in sales_and_details within the "doughnut" buffer
+sales_and_details |> 
+  filter(st_intersects(., doughnut_buffer, sparse = FALSE))
 ```
 
 Use a difference in differences approach to estimate whether this development had an impact on sales prices. Start with a basic model for the sales amount based on the pre/post and treatment/control variables only. Can we conclude that the sales price for nearby homes was affected by the development?
